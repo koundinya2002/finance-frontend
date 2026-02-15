@@ -141,7 +141,7 @@ const App = () => {
 
       <div className="container">
         <div className="total-section">
-          <div className="total-label">Total Balance</div>
+          <div className="total-label">Total</div>
           <h1 className="total-amount">{formatCurrency(total)}</h1>
         </div>
 
