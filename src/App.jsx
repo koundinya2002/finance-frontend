@@ -4,6 +4,7 @@ import './styles/global.css';
 
 const App = () => {
   const [token, setToken] = useState(localStorage.getItem('access'));
+  const [user, setUser] = useState(null); // State to store profile data
   const [transactions, setTransactions] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -11,8 +12,22 @@ const App = () => {
   const [authForm, setAuthForm] = useState({ username: '', password: '' });
 
   useEffect(() => {
-    if (token) fetchAll();
+    if (token) {
+      fetchProfile();
+      fetchAll();
+    }
   }, [token]);
+
+  const fetchProfile = async () => {
+    try {
+      const res = await apiClient.get('/auth/profile/');
+      setUser(res.data);
+    } catch (err) {
+      console.error("Profile fetch error:", err);
+      // If profile fails, token might be expired
+      if (err.response?.status === 401) handleLogout();
+    }
+  };
 
   const fetchAll = async () => {
     setLoading(true);
@@ -34,6 +49,7 @@ const App = () => {
       localStorage.setItem('access', res.data.access);
       localStorage.setItem('refresh', res.data.refresh);
       setToken(res.data.access);
+      // fetchProfile and fetchAll will be triggered by the useEffect [token]
     } catch {
       alert("Invalid Credentials");
     }
@@ -42,6 +58,8 @@ const App = () => {
   const handleLogout = () => {
     localStorage.clear();
     setToken(null);
+    setUser(null);
+    setTransactions([]);
   };
 
   const openDetail = async (id = null) => {
@@ -94,8 +112,6 @@ const App = () => {
   const formatDate = (dateStr) => {
     if (!dateStr) return "";
     const date = new Date(dateStr);
-    
-    // Updated options to include Time with AM/PM
     const options = { 
       month: 'short', 
       day: 'numeric', 
@@ -104,16 +120,12 @@ const App = () => {
       minute: '2-digit',
       hour12: true 
     };
-    
     let formatted = date.toLocaleString('en-US', options);
-
-    // Adding ordinal suffix (st, nd, rd, th) to the day
     const day = date.getDate();
     let suffix = 'th';
     if ([1, 21, 31].includes(day)) suffix = 'st';
     else if ([2, 22].includes(day)) suffix = 'nd';
     else if ([3, 23].includes(day)) suffix = 'rd';
-
     return formatted.replace(day, `${day}${suffix}`);
   };
 
@@ -134,14 +146,16 @@ const App = () => {
     <div id="root">
       <nav className="navbar">
         <div className="nav-content">
-          <button className="btn-add" onClick={() => openDetail()}>+ Add</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+             <button className="btn-add" onClick={() => openDetail()}>+ Add</button>
+          </div>
           <button className="btn-logout" onClick={handleLogout}>Logout</button>
         </div>
       </nav>
 
       <div className="container">
         <div className="total-section">
-          <div className="total-label">Total</div>
+          <div className="total-label">Total Balance</div>
           <h1 className="total-amount">{formatCurrency(total)}</h1>
         </div>
 
@@ -153,7 +167,9 @@ const App = () => {
               <div key={t.id} className="card" onClick={() => openDetail(t.id)}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span className="item-name">{t.item}</span>
-                  <span className="item-date">{formatDate(t.datetime || t.created_at || t.date)}</span>
+                  <span className="item-date">
+                    by {user?.username} at {formatDate(t.datetime || t.created_at || t.date)}
+                  </span>
                 </div>
                 <span className="item-amount">{formatCurrency(t.amount)}</span>
               </div>
@@ -172,7 +188,7 @@ const App = () => {
             </h3>
             {modal.data.id && (
               <p style={{ fontSize: '0.75rem', color: '#999', margin: '0 0 1.5rem' }}>
-                Recorded on: {formatDate(modal.data.datetime || modal.data.created_at)}
+                Recorded by {user?.username} on: {formatDate(modal.data.datetime || modal.data.created_at)}
               </p>
             )}
             <form onSubmit={handleSave}>
